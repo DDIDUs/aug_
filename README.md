@@ -4,6 +4,6 @@
 
     bash train.sh
 
-diff 계산
+학습 모델 평가
 
-    bash test.sh
+    bash eval.sh
