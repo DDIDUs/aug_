@@ -1,5 +1,11 @@
 # Dynamic Augmentation
 
+## 실험 환경 
+
+실험 모델 : VGGnet16
+
+학습 데이터 세트 : CIFAR10
+
 ## 학습 모드
 
 |모드|설명|
