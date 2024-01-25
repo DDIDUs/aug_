@@ -1,0 +1,3 @@
+class EXP_MODES:
+    DYNAMIC_AUG_ONLY = 1
+    DYNAMIC_AUG = 2
