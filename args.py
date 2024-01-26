@@ -25,7 +25,7 @@ def build_parser():
     parser.add_argument('-batch_size', type=int, default=1024, help='Batch size')
     parser.add_argument('-epochs', type=int, default=120, help='Maximum # of training epochs')
     parser.add_argument('-patience', type=int, default=30, help='Early stop')
-    parser.add_argument('-train_mode', type=int, default=1, choices=[1, 2], help='Select train mode')
+    parser.add_argument('-train_mode', type=int, default=2, choices=[1, 2, 3,4], help='Select train mode')
     parser.add_argument('-train_model', type=str, default='vggnet', choices=['vggnet', 'resnet', 'densenet', 'pyramidnet'], help= 'Select neural network model')
     
     return parser

@@ -63,6 +63,7 @@ def lr_scheduler(optimizer, early, l):
         param_group['lr'] = lr
         
 def train(train_data, valid_data, test_data, args, repeat_index, aug_rate=0, shuffleFlag=False):
+    showFlag = 0
 
     config = args
 
@@ -84,18 +85,20 @@ def train(train_data, valid_data, test_data, args, repeat_index, aug_rate=0, shu
         
     dataset = config.dataset
     
-    if config.train_mode != EXP_MODES.DYNAMIC_AUG_ONLY:
-        output_dir = "./output/{}/{}/m{}_r{}_aug{}_s-{}".format(dataset,config.train_model, config.train_mode, repeat_index, post_str,shuffleFlag)
-    else:
-        output_dir = "./output/{}_aug/{}/m{}_r{}_aug".format(dataset,config.train_model, config.train_mode, repeat_index)
+    if config.train_mode == EXP_MODES.ORIGINAL:
+        output_dir = "./output/{}/{}/m{}_r{}_orig".format(dataset,config.train_model, config.train_mode, repeat_index)
+    elif config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
+        output_dir = "./output/{}/{}/m{}_r{}_aug-only".format(dataset,config.train_model, config.train_mode, repeat_index)
+    elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
+        output_dir = "./output/{}/{}/m{}_r{}_our_1x{}_s-{}".format(dataset,config.train_model, config.train_mode, repeat_index, post_str,shuffleFlag)
+    elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
+        output_dir = "./output/{}/{}/m{}_r{}_our_2x{}_s-{}".format(dataset,config.train_model, config.train_mode, repeat_index, post_str,shuffleFlag)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-
     
     if is_train:                                                                                                                    # 학습
         early = EarlyStopping(patience=config.patience, dir=output_dir)
-
         logFile= open("{}/log.txt".format(output_dir), "w")
 
         train_model = config.train_model
@@ -123,17 +126,18 @@ def train(train_data, valid_data, test_data, args, repeat_index, aug_rate=0, shu
         best_acc = 0
         
         valid_loader = torch.utils.data.DataLoader(valid_data, batch_size=config.batch_size, shuffle=True, num_workers=4)
-        if config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:                                                                                                 # 기존
+        if (config.train_mode == EXP_MODES.ORIGINAL) or (config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY):
             train_loader = torch.utils.data.DataLoader(train_data, batch_size=config.batch_size, shuffle=True, num_workers=4)
             
-
+        my_image = []
         for i in range(config.epochs):                                                                                              # 모델 학습 시작
             model.train()
             print("=====", i, "Step of ", config.epochs, "=====")
 
-            if config.train_mode == EXP_MODES.DYNAMIC_AUG: 
+            if (config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X) or (config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X):
                 train_loader = prepare_train_aug_data_per_epoch(config.dataset, train_data, aug_rate, config.batch_size, shuffleFlag, config.train_mode)
-
+            
+            index = 0
             for j, batch in enumerate(train_loader):
                 x, y_ = batch[0].to(device), batch[1].to(device)
                 #lr_scheduler(optimizer, early)
@@ -142,6 +146,9 @@ def train(train_data, valid_data, test_data, args, repeat_index, aug_rate=0, shu
                 loss = loss_func(output,y_)
                 loss.backward()
                 optimizer.step()
+                if index==0:
+                    my_image.append(batch[0][1])
+                index = index + 1
 
             if i % 10 ==0:
                 loss_arr.append(loss.cpu().detach().numpy())
@@ -180,6 +187,13 @@ def train(train_data, valid_data, test_data, args, repeat_index, aug_rate=0, shu
                 break
             scheduler.step()
         logFile.close()
+        if(showFlag==1):
+            fig, axes = plt.subplots(1, 5, figsize=(15, 3))
+            for i in range(5):
+                axes[i].imshow(my_image[i].permute(1, 2, 0))
+                axes[i].axis('off')
+            plt.show()
+            print("end")
     else:  
         test_loader = torch.utils.data.DataLoader(test_data, batch_size=config.batch_size, shuffle=True, num_workers=4)                                                                                                                        # 모델 추론
         mymodel = '{}/loss_best.pt'.format(output_dir)
@@ -208,20 +222,22 @@ if __name__ == '__main__':
 
     config = args
 
+    train_orig_dataset, valid_orig_ataset, test_orig_dataset, train_aug_dataset = load_original_and_aug_Data(dataset_name=config.dataset)
+    '''
     if config.train_mode == EXP_MODES.DYNAMIC_AUG:
-        train_data, valid_data, test_data  = loadData(dataset_name=config.dataset, 
-                                                        applyDataAug=config.augmentation,
-                                                        aug_rate=0.2,
-                                                        aug_sh=False)
-    else:
+        train_data, valid_data, test_data  = load_original_Data(dataset_name=config.dataset)
+    elif config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
         train_data, valid_data, test_data  = load_aug_Data(dataset_name=args.dataset)
+    '''
         
-    aug_pool = [10, 20, 30, 50, 70, 100]
+    #aug_pool = [10, 20, 30, 50, 70, 100]
+    aug_pool = [100]
     for index in range(repeat_num):
-        if config.train_mode == EXP_MODES.DYNAMIC_AUG:
+        if config.train_mode == EXP_MODES.ORIGINAL:
+            train(train_orig_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=0,shuffleFlag=True)
+        elif config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
+            train(train_aug_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=0,shuffleFlag=True)
+        elif (config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X) or (config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X):
             for aug_val in aug_pool:
-                train(train_data, valid_data, test_data, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=True)
-                train(train_data, valid_data, test_data, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=False)
-        else:
-            train(train_data, valid_data, test_data, args=args, repeat_index=index,aug_rate=0,shuffleFlag=True)
-        #train(train_data, valid_data, test_data, args=args, repeat_index=index, validshuffleFlag=True)
+                train(train_orig_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=True)
+                train(train_orig_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=False)
