@@ -10,8 +10,10 @@
 
 |모드|설명|
 |------|---|
-|DYNAMIC_AUG| 원본 데이터 (4만개) + 증강 데이터 (비율) |
+|ORIGINAL| 원본 데이터 (4만개)  |
 |DYNAMIC_AUG_ONLY| 증강 데이터 (4만개) |
+|ORIG_PLUS_DYNAMIC_AUG_1X| 원본 데이터 + 증강 데이터 (비율) = 4만개 |
+|ORIG_PLUS_DYNAMIC_AUG_2X| 원본 데이터 (4만개) + 증강 데이터 (비율) >= more than 4만개 |
 
 ## 모델 학습
 
