@@ -22,16 +22,13 @@ import sys
         
 def eval(test_data, dataset_name, model_name, train_mode, repeat_index, aug_rate=0, shuffleFlag=False):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    post_str = ""
-    if aug_rate>0:
-        post_str = "-{}".format(aug_rate)
-      
-    if train_mode != EXP_MODES.DYNAMIC_AUG_ONLY:
-        output_dir = "./output/{}/{}/m{}_r{}_aug{}_s-{}".format(dataset_name,model_name, train_mode, repeat_index, post_str,shuffleFlag)
+        
+    mode_dict = { 1:'orig', 2:'aug-only', 3:'our_1x-100', 4:'our_2x-100'}
+        
+    if EXP_MODES.ORIGINAL == train_mode or EXP_MODES.DYNAMIC_AUG_ONLY == train_mode:
+        output_dir = "./output/{}/{}/m{}_r{}_{}".format(dataset_name,model_name, train_mode, repeat_index, mode_dict[train_mode])
     else:
-        output_dir = "./output/{}_aug/{}/m{}_r{}_aug".format(dataset_name,model_name, train_mode, repeat_index)
-
+        output_dir = "./output/{}/{}/m{}_r{}_{}_s-{}".format(dataset_name,model_name, train_mode, repeat_index, mode_dict[train_mode], shuffleFlag)
 
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=64, shuffle=True, num_workers=4)                                                                                                                        # 모델 추론
     mymodel = '{}/loss_best.pt'.format(output_dir)
@@ -61,22 +58,20 @@ if __name__ == '__main__':
     
     dataset_names = ["cifar10"]
     model_names = ["vggnet"]
-    aug_pool = [10, 20, 30, 50, 70, 100]
+    aug_pool = [100]
     
     for dataset_name in dataset_names:
+        _, _, test_data, _  = load_original_and_aug_Data(dataset_name=dataset_name)
         for model_name in model_names:
-            if args.train_mode == EXP_MODES.DYNAMIC_AUG:
-                _, _, test_data  = loadData(dataset_name=dataset_name, 
-                                            applyDataAug=args.augmentation,
-                                            aug_rate=0.2,
-                                            aug_sh=False)
+            _, _, test_data, _  = load_original_and_aug_Data(dataset_name=dataset_name)
+            if EXP_MODES.ORIGINAL == args.train_mode or EXP_MODES.DYNAMIC_AUG_ONLY == args.train_mode:
+                for repeat_id in range(repeat_num):
+                    eval(test_data, dataset_name, model_name, args.train_mode, repeat_index=repeat_id, aug_rate=0, shuffleFlag=True)
             else:
-                _, _, test_data  = load_aug_Data(dataset_name=dataset_name)
-                
-            for aug_val in aug_pool:
-                for repeat_id in range(repeat_num):
-                    eval(test_data, dataset_name, model_name, args.train_mode, repeat_index=repeat_id, aug_rate=aug_val, shuffleFlag=False)
+                for aug_val in aug_pool:
+                    for repeat_id in range(repeat_num):
+                        eval(test_data, dataset_name, model_name, args.train_mode, repeat_index=repeat_id, aug_rate=aug_val, shuffleFlag=False)
 
-            for aug_val in aug_pool:
-                for repeat_id in range(repeat_num):
-                    eval(test_data, dataset_name, model_name, args.train_mode, repeat_index=repeat_id, aug_rate=aug_val, shuffleFlag=True)
+                for aug_val in aug_pool:
+                    for repeat_id in range(repeat_num):
+                        eval(test_data, dataset_name, model_name, args.train_mode, repeat_index=repeat_id, aug_rate=aug_val, shuffleFlag=True
