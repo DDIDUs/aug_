@@ -202,7 +202,7 @@ def load_original_and_aug_Data(dataset_name = None):
                                               transform=transform_original
                                               )
     
-    train_orig_dataset, valid_orig_ataset = train_test_split(original_train_dataset, test_size=valid_rate, shuffle=False)
+    train_orig_dataset, valid_orig_dataset = train_test_split(original_train_dataset, test_size=valid_rate, shuffle=False)
 
     test_orig_dataset = dataset_load_func[dataset_name](root=data_dir, 
                                                    train=False, 
@@ -217,7 +217,7 @@ def load_original_and_aug_Data(dataset_name = None):
 
     train_aug_dataset = torch.utils.data.Subset(aug_train_dataset, range(train_size))
 
-    return train_orig_dataset, valid_orig_ataset, test_orig_dataset, train_aug_dataset
+    return train_orig_dataset, valid_orig_dataset, test_orig_dataset, train_aug_dataset
 
 
 def load_original_Data(dataset_name = None):
