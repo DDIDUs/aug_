@@ -23,12 +23,12 @@ import sys
 def eval(test_data, dataset_name, model_name, train_mode, repeat_index, aug_rate=0, shuffleFlag=False):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-    mode_dict = { 1:'orig', 2:'aug-only', 3:'our_1x-100', 4:'our_2x-100'}
+    mode_dict = { 1:'orig', 2:'aug-only', 3:'our_1x', 4:'our_2x'}
         
     if EXP_MODES.ORIGINAL == train_mode or EXP_MODES.DYNAMIC_AUG_ONLY == train_mode:
         output_dir = "./output/{}/{}/m{}_r{}_{}".format(dataset_name,model_name, train_mode, repeat_index, mode_dict[train_mode])
     else:
-        output_dir = "./output/{}/{}/m{}_r{}_{}_s-{}".format(dataset_name,model_name, train_mode, repeat_index, mode_dict[train_mode], shuffleFlag)
+        output_dir = "./output/{}/{}/m{}_r{}_{}-{}_s-{}".format(dataset_name,model_name, train_mode, repeat_index, mode_dict[train_mode],aug_rate, shuffleFlag)
 
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=64, shuffle=True, num_workers=4)                                                                                                                        # 모델 추론
     mymodel = '{}/loss_best.pt'.format(output_dir)
