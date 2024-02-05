@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 import random
 import os
 
+valid_rate = 0.2
 dataset_load_func = {
     'mnist': torchvision.datasets.MNIST,
     'fmnist':torchvision.datasets.FashionMNIST,
@@ -21,8 +22,12 @@ dataset_load_func = {
     'cifar100': torchvision.datasets.CIFAR100,
 }
 
-def prepare_aug_data(dataset_name):
-    transform_t = transforms.Compose([
+transform_original = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+
+transform_aug = transforms.Compose([
             transforms.RandomChoice([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomVerticalFlip(),
@@ -33,28 +38,72 @@ def prepare_aug_data(dataset_name):
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
+
+class CustomCIFAR10Dataset(torch.utils.data.Dataset):
+    def __init__(self, original_dataset, original_transform, augmented_transform, augmentation_rate):
+        self.original_dataset = original_dataset
+        self.original_transform = original_transform
+        self.augmented_transform = augmented_transform
+        self.augmentation_rate = augmentation_rate
+
+    def __getitem__(self, index):
+        if torch.rand(1).item() < self.augmentation_rate:
+            return self.augmented_transform(self.original_dataset[index][0]), self.original_dataset[index][1]
+        else:
+            return self.original_transform(self.original_dataset[index][0]), self.original_dataset[index][1]
+
+    def __len__(self):
+        return len(self.original_dataset)
     
+
+def prepare_aug_data(dataset_name):
     data_dir = "./data/" + dataset_name
     
     aug_dataset = dataset_load_func[dataset_name](root=data_dir, 
                                               train=True, 
                                               download=True,
-                                              transform=transform_t
+                                              transform=transform_aug
                                               )
+    aug, _ = train_test_split(aug_dataset, train_size=(1-valid_rate), shuffle=False)
     
-    return aug_dataset
+    return aug
 
 def prepare_train_aug_data_per_epoch(dataset_name, train_dataset, aug_val, bs, shuffleFlag, mode):
     aug_rate = aug_val/100
     
     aug_data = prepare_aug_data(dataset_name)
+
+    ''' Fo me, I want to use below code insted of calling "prepare_aug_data"
+    num_samples = len(aug_data)
+    num_subset = int(num_samples * 0.8)
+    aug_data = Subset(aug_data, range(num_subset))
+    '''
+
+    if aug_rate<1:
+        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
+            train_dataset, _ = train_test_split(train_dataset, train_size=1-aug_rate, shuffle=shuffleFlag)
+        aug, _ = train_test_split(aug_data, train_size=aug_rate, shuffle=shuffleFlag)
+        my_train_dataset = train_dataset + aug
+    else:
+        aug = list(aug_data)        
+        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
+            my_train_dataset = aug
+        elif mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
+            my_train_dataset = train_dataset + aug
+        
+    train_loader = torch.utils.data.DataLoader(my_train_dataset, batch_size=bs, shuffle=True, num_workers=4)   
     
+    return train_loader
+
+def prepare_train_aug_data_per_epoch2(train_dataset, aug_data, aug_val, bs, shuffleFlag, mode):
+    aug_rate = aug_val/100
+   
     if aug_rate<1:
         if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
             train_dataset, _ = train_test_split(train_dataset, train_size=1-aug_rate, shuffle=shuffleFlag)
             aug, _ = train_test_split(aug_data, train_size=aug_rate, shuffle=shuffleFlag)
         elif mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
-            aug, _ = train_test_split(aug_data, train_size=aug_rate, shuffle=shuffleFlag)
+            aug, _ = train_test_split(aug_data, train_size=aug_rate, shuffle=True)
         my_train_dataset = train_dataset + aug
     else:
         aug = list(aug_data)        
@@ -68,129 +117,8 @@ def prepare_train_aug_data_per_epoch(dataset_name, train_dataset, aug_val, bs, s
     return train_loader
 
 
-def prepare_train_data_per_epoch(train_mode, train_dataset, valid_dataset, bs, dataset, valid_shuffle=False):
-    
-    if dataset != 'cifar100':
-        num_label = 10
-    else:
-        num_label = 100
-    
-    label = [i for i in range(num_label)]
-
-    
-    train_loader = []
-    
-    if train_mode == EXP_MODES.RANDOM_1 or train_mode == EXP_MODES.RANDOM_5:
-        length_train = len(train_dataset)
-        selection_rate = 1
-        if train_mode == EXP_MODES.RANDOM_1: 
-            selection_rate = 0.99
-        elif train_mode == EXP_MODES.RANDOM_5:
-            selection_rate = 0.95
-        random_indices_train = random.sample(range(length_train), (int)(length_train*selection_rate))
-        reduced_train_dataset = [train_dataset[i] for i in random_indices_train]
-        train_loader = torch.utils.data.DataLoader(reduced_train_dataset, batch_size=bs, shuffle=True, num_workers=4)   
-        if valid_shuffle:  
-            length_valid = len(valid_dataset)
-            random_indices_valid = random.sample(range(length_valid), (int)(length_valid*selection_rate))
-            reduced_valid_dataset = [valid_dataset[i] for i in random_indices_valid]
-            valid_dataset = reduced_valid_dataset
-
-
-    elif train_mode == EXP_MODES.EVEN_5 or train_mode == EXP_MODES.EVEN_LABEL:
-        train_data_len_by_label = []
-        valid_data_len_by_label = []
-        train_data_by_label = []
-        valid_data_by_label = []
-
-        for i in label:
-            train_data_by_label.append([])
-            valid_data_by_label.append([])
-        for i in train_dataset:
-            train_data_by_label[i[1]].append(i)
-        for i in valid_dataset:
-            valid_data_by_label[i[1]].append(i)
-        for i in label:
-            random.shuffle(train_data_by_label[i])
-            random.shuffle(valid_data_by_label[i])
-            train_data_len_by_label.append(len(train_data_by_label[i]))
-            valid_data_len_by_label.append(len(valid_data_by_label[i]))
-        train_min_len = min(train_data_len_by_label)
-        if train_mode == EXP_MODES.EVEN_5: 
-            my_length = len(train_dataset)
-            temp = (int)((my_length/num_label)*.95)
-            if temp<train_min_len:
-                train_min_len = temp
-        
-        for i in train_data_by_label:
-            t = i[:train_min_len]
-            train_loader += t
-        train_loader = torch.utils.data.DataLoader(tuple(train_loader), batch_size=bs, shuffle=True, num_workers=4)
-
-        if valid_shuffle:     
-            val_min_len = min(valid_data_len_by_label)
-            val_temp = []
-            for i in range(val_min_len):
-                w = []
-                for t in valid_data_by_label:
-                    w.append(t.pop())
-                val_temp+=w
-            valid_dataset = val_temp
-
-
-        '''
-        val_min_len = min(valid_len)
-        val_temp = []
-
-        for i in range(val_min_len):
-            w = []
-            for t in valid_data_by_label:
-                w.append(t.pop())
-            val_temp+=w
-        valid_dataset = val_temp       
-        '''
-        '''                                                                                                               # 균등
-        temp = []
-        for i in range(min_len):
-            w = []
-            for t in train_data_by_label:
-                w.append(t.pop())
-            temp+=w
-        train_loader = torch.utils.data.DataLoader(tuple(temp), batch_size=bs, shuffle=False, num_workers=4)
-        '''
-    elif train_mode == EXP_MODES.DYNAMIC_AUG:
-        aug_data = torch.load("aug_{}.pt".format(dataset_name))
-        aug, _ = train_test_split(aug_data, train_size=aug_rate, shuffle=False)
-        aug_train_dataset = train_dataset + aug
-        train_loader = torch.utils.data.DataLoader(aug_train_dataset, batch_size=bs, shuffle=True, num_workers=4)   
-
-    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=bs, shuffle=True, num_workers=4)
-    
-    return train_loader, valid_loader
 
 def load_original_and_aug_Data(dataset_name = None):
-    valid_rate = 0.2
-
-    if dataset_name == "cifar10" or dataset_name == "cifar100":
-        transform_original = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-        transform_aug = transforms.Compose([
-            transforms.RandomChoice([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
-                transforms.RandomRotation(180),
-                transforms.RandomAffine(0, shear=10, scale=(0.8, 1.2)),
-                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-                ]),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-
-    else:
-        transform_original = transforms.ToTensor()
-
     data_dir = './data/{}'.format(dataset_name)
     data_download_Flag = False
     if not os.path.exists(data_dir):
@@ -221,13 +149,6 @@ def load_original_and_aug_Data(dataset_name = None):
 
 
 def load_original_Data(dataset_name = None):
-    if dataset_name == "cifar10" or dataset_name == "cifar100":
-        transform_t = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-    else:
-        transform_t = transforms.ToTensor()
 
     data_dir = './data/{}'.format(dataset_name)
     data_download_Flag = False
@@ -237,7 +158,7 @@ def load_original_Data(dataset_name = None):
     dataset = dataset_load_func[dataset_name](root=data_dir, 
                                               train=True, 
                                               download=data_download_Flag,
-                                              transform=transform_t
+                                              transform=transform_original
                                               )
     
     train_dataset, valid_dataset = train_test_split(dataset, test_size=0.2, shuffle=False)
@@ -245,29 +166,16 @@ def load_original_Data(dataset_name = None):
     test_dataset = dataset_load_func[dataset_name](root=data_dir, 
                                                    train=False, 
                                                    download=True,
-                                                   transform=transform_t)
+                                                   transform=transform_original)
 
     return train_dataset, valid_dataset, test_dataset
 
+def getCustomDataset(train_dataset, augmentation_rate):
+    custom_train_dataset = CustomCIFAR10Dataset(train_dataset, transform_original, transform_aug, augmentation_rate)
+    return custom_train_dataset
+
+    
 def load_aug_Data(dataset_name = None):
-    if dataset_name == "cifar10" or dataset_name == "cifar100":
-        transform_t = transforms.Compose([
-            transforms.RandomChoice([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
-                transforms.RandomRotation(180),
-                transforms.RandomAffine(0, shear=10, scale=(0.8, 1.2)),
-                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-                ]),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-        transform_valid = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-    else:
-        transform_t = transforms.ToTensor()
 
     data_dir = './data/{}'.format(dataset_name)
     data_download_Flag = False
@@ -275,13 +183,13 @@ def load_aug_Data(dataset_name = None):
         data_download_Flag = True
     
     # Load CIFAR-10 dataset
-    full_dataset = dataset_load_func[dataset_name](root='./data', train=True, download=True, transform=transform_train)
+    full_dataset = dataset_load_func[dataset_name](root='./data', train=True, download=True, transform=transform_original)
 
     # Split the dataset into training and validation sets
     #train_dataset, valid_dataset = train_test_split(full_dataset, test_size=0.2, shuffle=False)
 
     # Split into training and validation sets
-    train_size = int(0.8 * len(full_dataset))
+    train_size = int((1-valid_rate) * len(full_dataset))
     valid_size = len(full_dataset) - train_size
 
     train_dataset = torch.utils.data.Subset(full_dataset, range(train_size))
@@ -290,59 +198,6 @@ def load_aug_Data(dataset_name = None):
     test_dataset = dataset_load_func[dataset_name](root=data_dir, 
                                                    train=False, 
                                                    download=True,
-                                                   transform=transform_valid)
+                                                   transform=transform_original)
     
     return train_dataset, valid_dataset, test_dataset
-
-
-def load_aug_Data_s(dataset_name = None):
-    if dataset_name == "cifar10" or dataset_name == "cifar100":
-        transform_t = transforms.Compose([
-            transforms.RandomChoice([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
-                transforms.RandomRotation(180),
-                transforms.RandomAffine(0, shear=10, scale=(0.8, 1.2)),
-                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-                ]),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-        transform_v = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-    else:
-        transform_t = transforms.ToTensor()
-
-    data_dir = './data/{}'.format(dataset_name)
-    data_download_Flag = False
-    if not os.path.exists(data_dir):
-        data_download_Flag = True
-
-    train_ysma = dataset_load_func[dataset_name](root=data_dir, 
-                                              train=True, 
-                                              download=data_download_Flag,
-                                              transform=transform_t
-                                              )
-    
-    dataset = dataset_load_func[dataset_name](root=data_dir, 
-                                              train=True, 
-                                              download=data_download_Flag,
-                                              transform=transform_t
-                                              )
-    
-    train_dataset, valid_dataset = train_test_split(list(range(len(dataset))), test_size=0.2, shuffle=False)
-
-    test_dataset = dataset_load_func[dataset_name](root=data_dir, 
-                                                   train=False, 
-                                                   download=True,
-                                                   transform=transform_v)
-    
-    train_dataset = Subset(dataset, train_dataset)
-    valid_dataset = Subset(dataset, valid_dataset)
-    
-    train_dataset.dataset.transform = transform_t
-    valid_dataset.dataset.transform = transform_v
-
-    return train_ysma, valid_dataset, test_dataset
