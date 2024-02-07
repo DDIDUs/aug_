@@ -307,7 +307,7 @@ def train(train_data, valid_data, test_data, args, repeat_index, aug_rate=0, shu
                 #train_loader = prepare_train_aug_data_per_epoch2(train_data, aug_data,aug_rate, config.batch_size, shuffleFlag, config.train_mode)
             
             index = 0
-            repeat_per_epoch = 1
+            repeat_per_epoch = 2
             if config.train_mode == EXP_MODES.AUG_2X:
                 repeat_per_epoch = 2
             for temp_index in range(repeat_per_epoch):
@@ -422,4 +422,4 @@ if __name__ == '__main__':
                 train(train_orig_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=True,aug_data=train_aug_dataset)
                 #train_our(train_orig_dataset, train_aug_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=True)
         elif config.train_mode == EXP_MODES.AUG_2X:
-            train(train_orig_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=0,shuffleFlag=True)
+            train(train_aug_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=0,shuffleFlag=True)
