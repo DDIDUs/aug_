@@ -422,4 +422,4 @@ if __name__ == '__main__':
                 train(train_orig_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=True,aug_data=train_aug_dataset)
                 #train_our(train_orig_dataset, train_aug_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=True)
         elif config.train_mode == EXP_MODES.AUG_2X:
-            train(train_orig_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=0,shuffleFlag=True)
+            train(train_aug_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=0,shuffleFlag=True)
