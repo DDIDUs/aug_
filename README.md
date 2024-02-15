@@ -14,7 +14,8 @@
 |DYNAMIC_AUG_ONLY| 동적 증강 데이터만 사용 (4만개/에폭) |
 |ORIG_PLUS_DYNAMIC_AUG_1X| 원본 데이터 일부 + 동적 증강 데이터 일부 (비율 만큼) = 4만개/에폭 |
 |ORIG_PLUS_DYNAMIC_AUG_2X| 원본 데이터 (4만개) + 증강 데이터 일부 (비율 만큼) = 4만개 이상(최대 8만개)/에폭|
-|AUG_2X| 증강 2배 = 8만개/에폭|
+|ORIG_PLUS_VALID_AUG_1X| 원본 데이터 일부 + validation data 포함 동적 증강 데이터 일부 (비율 만큼) = 약 4만개/에폭 |
+|ORIG_PLUS_VALID_AUG_2X| 원본 데이터 (4만개) + validation data 포함 증강 데이터 일부 (비율 만큼) = 4만개 이상(최대 9만개)/에폭|
 
 ## 모델 학습
 
