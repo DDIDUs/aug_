@@ -23,9 +23,9 @@ import sys
 def eval(test_data, dataset_name, model_name, train_mode, repeat_index, aug_rate=0, shuffleFlag=False):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-    mode_dict = { 1:'orig', 2:'aug-only', 3:'our_1x', 4:'our_2x'}
+    mode_dict = { 1:'orig', 2:'aug-only', 3:'our_1x', 4:'our_2x', 5:'aug_2x'}
         
-    if EXP_MODES.ORIGINAL == train_mode or EXP_MODES.DYNAMIC_AUG_ONLY == train_mode:
+    if EXP_MODES.ORIGINAL == train_mode or EXP_MODES.DYNAMIC_AUG_ONLY == train_mode or EXP_MODES.AUG_2X == train_mode:
         output_dir = "./output/{}/{}/m{}_r{}_{}".format(dataset_name,model_name, train_mode, repeat_index, mode_dict[train_mode])
     else:
         output_dir = "./output/{}/{}/m{}_r{}_{}-{}_s-{}".format(dataset_name,model_name, train_mode, repeat_index, mode_dict[train_mode],aug_rate, shuffleFlag)
@@ -58,20 +58,16 @@ if __name__ == '__main__':
     
     dataset_names = ["cifar10"]
     model_names = ["vggnet"]
-    aug_pool = [100]
+    aug_pool = [30, 50, 70, 100]
     
     for dataset_name in dataset_names:
         _, _, test_data, _  = load_original_and_aug_Data(dataset_name=dataset_name)
         for model_name in model_names:
             _, _, test_data, _  = load_original_and_aug_Data(dataset_name=dataset_name)
-            if EXP_MODES.ORIGINAL == args.train_mode or EXP_MODES.DYNAMIC_AUG_ONLY == args.train_mode:
+            if EXP_MODES.ORIGINAL == args.train_mode or EXP_MODES.DYNAMIC_AUG_ONLY == args.train_mode or EXP_MODES.AUG_2X == args.train_mode:
                 for repeat_id in range(repeat_num):
                     eval(test_data, dataset_name, model_name, args.train_mode, repeat_index=repeat_id, aug_rate=0, shuffleFlag=True)
             else:
                 for aug_val in aug_pool:
                     for repeat_id in range(repeat_num):
-                        eval(test_data, dataset_name, model_name, args.train_mode, repeat_index=repeat_id, aug_rate=aug_val, shuffleFlag=False)
-
-                for aug_val in aug_pool:
-                    for repeat_id in range(repeat_num):
-                        eval(test_data, dataset_name, model_name, args.train_mode, repeat_index=repeat_id, aug_rate=aug_val, shuffleFlag=True
+                        eval(test_data, dataset_name, model_name, args.train_mode, repeat_index=repeat_id, aug_rate=aug_val, shuffleFlag=True)
