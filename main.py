@@ -8,6 +8,7 @@ from models.den_model import *
 from models.vgg_model import *
 from models.res_model import *
 from models.py_model import *
+from models.shake_resnet import *
 
 from prepare_data import *
 from args import build_parser
@@ -72,7 +73,9 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
     elif config.train_model == 'densenet':
             model = DenseNet(growthRate=12, depth=100, reduction=0.5,
                             bottleneck=True, nClasses=number_of_classes, data=config.dataset)
-    else:
+    elif config.train_model == "shakeshake":
+            model = ShakeResNet(24, config.w_base, number_of_classes)
+    elif config.train_model == "pyramidnet":
             model = PyramidNet(dataset=config.dataset, depth=32, alpha=200, num_classes=number_of_classes, bottleneck=True)
         
     model = model.to(device)

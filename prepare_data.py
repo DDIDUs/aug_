@@ -2,8 +2,10 @@ from random import shuffle
 import torch
 import torchvision
 import torchvision.transforms as transforms
+from UniformAugment import UniformAugment
 from exp_mode import EXP_MODES
 
+from torchvision.transforms import AutoAugment, AutoAugmentPolicy
 from sklearn.model_selection import train_test_split
 import os
 
@@ -54,34 +56,20 @@ transform_aug1 = transforms.Compose([
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
-# s1: single 1 -> augmentation 1개만 적용
-transform_aug2_s1 = transforms.Compose([
-    transforms.RandomHorizontalFlip(p=1),
-    transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-])
-# s2: single 1 -> augmentation 1개만 적용
-transform_aug3_s2 = transforms.Compose([
-    transforms.RandomRotation(10),
+transform_autoaug = transforms.Compose([
+            AutoAugment(policy=AutoAugmentPolicy.CIFAR10),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+
+transform_uniform = transforms.Compose([
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-# s3: single 1 -> augmentation 1개만 적용
-transform_aug4_s3 = transforms.Compose([
-    transforms.RandomAffine(0, shear=10, scale=(0.8,1.2)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-])
-
-# s4: single 1 -> augmentation 1개만 적용
-transform_aug5_s4 = transforms.Compose([
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-    transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-])
-
-my_exp_transforms = [transform_aug0_rc,transform_aug1,transform_aug2_s1,transform_aug3_s2,transform_aug4_s3,transform_aug5_s4]
+my_exp_transforms = [transform_uniform, transform_autoaug, transform_aug0_rc, transform_aug1]
 
 class CustomCIFAR10Dataset(torch.utils.data.Dataset):
     def __init__(self, original_dataset, original_transform, augmented_transform, augmentation_rate):
@@ -149,7 +137,7 @@ def load_original_Data(dataset_name = None,valid_rate=0.2):
 
 def load_exp_aug_Data(dataset_name,transform_index,valid_rate):
     data_dir = './data/{}'.format(dataset_name)
-    
+    transform_uniform.transforms.insert(2, UniformAugment())
     # Load CIFAR-10 dataset
     aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, train=True, download=True, transform=my_exp_transforms[transform_index])
 
