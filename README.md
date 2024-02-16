@@ -2,7 +2,7 @@
 
 ## 실험 환경 
 
-실험 모델 : VGGnet16
+실험 모델 : VGGnet16, ShakeShake(26 2x32d, 2x96d)
 
 학습 데이터 세트 : CIFAR10
 
