@@ -1,14 +1,8 @@
-import torchvision
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
+import os
 import numpy as np
 import torch
 import torch.nn as nn
-import os
-from tqdm import tqdm
-from torch.utils.data import random_split
+import matplotlib.pyplot as plt
 
 from models.den_model import *
 from models.vgg_model import *
@@ -17,8 +11,6 @@ from models.py_model import *
 
 from prepare_data import *
 from args import build_parser
-
-import sys
 import csv
 
 class EarlyStopping:
@@ -57,16 +49,7 @@ class EarlyStopping:
         torch.save(model, '{}/loss_best.pt'.format(self.dir))
         self.val_loss_min = val_loss
 
-def lr_scheduler(optimizer, early, l):
-    lr = l
-    if early.counter > 6:
-        lr /= 10
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-
 def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
-    imageShowFlag = 0
-    
     config = args
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -78,17 +61,15 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
     
     early = EarlyStopping(patience=config.patience, dir=output_dir)
     logFile= open("{}/log.txt".format(output_dir), "w")
-
-    train_model = config.train_model
         
-    if train_model == 'vggnet':                                                                                                 # 학습 모델 준비
+    if config.train_model == 'vggnet':                                                                                                 # 학습 모델 준비
             if config.dataset == "mnist" or config.dataset == "fmnist":
                 model = VGG("VGG16m", config.dataset, nc=number_of_classes)
             else:
                 model = VGG("VGG16", config.dataset, nc=number_of_classes)
-    elif train_model == 'resnet':
+    elif config.train_model == 'resnet':
             model = ResNet50(config.dataset, nc=number_of_classes)
-    elif train_model == 'densenet':
+    elif config.train_model == 'densenet':
             model = DenseNet(growthRate=12, depth=100, reduction=0.5,
                             bottleneck=True, nClasses=number_of_classes, data=config.dataset)
     else:
@@ -99,31 +80,33 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
     loss_func = nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100, verbose=True)
+    
     loss_arr = []
-        
     best_acc = 0
-        
-    valid_loader = torch.utils.data.DataLoader(valid_data, batch_size=config.batch_size, shuffle=True)
+    
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=config.batch_size, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(valid_data, batch_size=config.batch_size, shuffle=True)
             
     my_image = []
+    
     for i in range(config.epochs):                                                                                              # 모델 학습 시작
-            model.train()
             print("=====", i, "Step of ", config.epochs, "=====")
 
             if (config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X) or (config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X) or (config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X) or (config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X):
                 train_loader = prepare_train_aug_data_per_epoch(train_data, aug_data, aug_rate, config.batch_size, config.train_mode)
             
             index = 0
-            for j, batch in enumerate(train_loader):
-                    x, y_ = batch[0].to(device), batch[1].to(device)
-                    #lr_scheduler(optimizer, early)
+            
+            model.train()
+            
+            for batch in train_loader:
+                    x, y = batch[0].to(device), batch[1].to(device)
                     optimizer.zero_grad()
                     output = model(x)
-                    loss = loss_func(output,y_)
+                    loss = loss_func(output,y)
                     loss.backward()
                     optimizer.step()
-                    if index==0:
+                    if index==0 and config.imageshowflag:
                         my_image.append(batch[0][1])
                     index = index + 1
 
@@ -146,26 +129,29 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
 
                     total += label.size(0)
                     correct += (output_index == y).sum().float()
+                    
                 logText = "Epoch {:03d}, Valid Acc: {:.2f}%, Valid loss: {:.2f}\n".format(i, 100*correct/total, valid_loss)
-                train_acc = "Accuracy against Validation Data: {:.2f}%, Valid_loss: {:.2f}".format(100*correct/total, valid_loss)
+                      
                 print(logText)
                 logFile.write(logText)
                 logFile.flush()
 
                 current_acc = (correct / total) * 100
+                
                 if current_acc > best_acc:
                     print(" Accuracy increase from {:.2f}% to {:.2f}%. Model saved".format(best_acc, current_acc))
                     best_acc = current_acc
                     torch.save(model, '{}/acc_best.pt'.format(output_dir))
+                    
             early(valid_loss, model)
-
             if early.early_stop:
                 print("stop")
                 break
+            
             scheduler.step()
     logFile.close()
 
-    if(imageShowFlag==1):
+    if config.imageshowflag:
             fig, axes = plt.subplots(1, 5, figsize=(15, 3))
             for i in range(5):
                 axes[i].imshow(my_image[i].permute(1, 2, 0))
@@ -173,13 +159,8 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
             plt.show()
             print("end")
 
-            
-
 def getOutputDir(dataset,train_model,train_mode,repeat_index,transform_index=None,aug_rate=0):
 
-    #dataset = config.dataset
-
-    post_str = ""
     if aug_rate>0:
         aug_rate_str = "-{}".format(aug_rate)
 
@@ -199,7 +180,7 @@ def getOutputDir(dataset,train_model,train_mode,repeat_index,transform_index=Non
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
-    print(output_dir)
+    print("save path : {}".format(output_dir))
 
     return output_dir
 
@@ -212,12 +193,13 @@ def test(test_data, args, output_dir):
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=config.batch_size, shuffle=True, num_workers=4)                                                                                                                        # 모델 추론
     mymodel = '{}/loss_best.pt'.format(output_dir)
     # Test phase
+    
     model = torch.load(mymodel).to(device)
     model.eval()
     correct = 0
     total_cnt = 0
         
-    for step, batch in enumerate(test_loader):
+    for batch in test_loader:
             batch[0], batch[1] = batch[0].to(device), batch[1].to(device)
             total_cnt += batch[1].size(0)
             logits = model(batch[0])
@@ -229,57 +211,9 @@ def test(test_data, args, output_dir):
     print("\nTest Acc : {}, {}".format(acc,output_dir))
     return acc 
     
-
-def test_for_exp(config):
-    repeat_num = config.repeat_num
-
-    _, _, test_orig_dataset = load_original_Data(dataset_name=config.dataset)
-
-    my_acc_results = []
-    transform_count = len(my_exp_transforms)
-
-    aug_rate_pool = [30,50,70,100]
-
-    if config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
-        my_acc_results = [[[] for _ in range(len(aug_pool))] for _ in range(transform_count)]
-
-    if config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
-        my_acc_results = [[[] for _ in range(len(aug_pool))] for _ in range(transform_count)]
-
-    for repeat_index in range(repeat_num):
-        if config.train_mode == EXP_MODES.ORIGINAL:
-            dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index)
-            acc = test(test_orig_dataset, args=config, output_dir=dir_name)
-            my_acc_results.append(acc)
-        elif config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
-            for t_index in range(transform_count):
-                dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index)
-                acc = test(test_orig_dataset, args=config, output_dir=dir_name)
-                my_acc_results[t_index].append(acc)
-        elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
-            for t_index in range(transform_count):
-                for j, aug_val in enumerate(aug_pool):
-                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
-                    acc = test(test_orig_dataset, args=config, output_dir=dir_name)
-                    my_acc_results[t_index][j].append(acc)
-        elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
-            for t_index in range(transform_count):
-                for j, aug_val in enumerate(aug_pool):
-                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
-                    acc = test(test_orig_dataset, args=config, output_dir=dir_name)
-                    my_acc_results[t_index][j].append(acc)
-        elif config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
-            for t_index in range(transform_count):
-                for j, aug_val in enumerate(aug_pool):
-                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
-                    acc = test(test_orig_dataset, args=config, output_dir=dir_name)
-                    my_acc_results[t_index][j].append(acc)
-        elif config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
-            for t_index in range(transform_count):
-                for j, aug_val in enumerate(aug_pool):
-                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
-                    acc = test(test_orig_dataset, args=config, output_dir=dir_name)
-                    my_acc_results[t_index][j].append(acc)
+def save_result(config, result):
+    
+    my_acc_results, transform_count, aug_pool = result
     
     f = open('./aug_result.csv','a', newline='')
     wr = csv.writer(f)
@@ -310,14 +244,52 @@ def test_for_exp(config):
                 my_acc_results[i][j].insert(0, "valid_2x_t{}_r{}".format(i,aug_val))
                 wr.writerow(my_acc_results[i][j])
     f.close()
+    
+
+def test_for_exp(config):
+    repeat_num = config.repeat_num
+
+    _, _, test_orig_dataset = load_original_Data(dataset_name=config.dataset)
+
+    my_acc_results = []
+    transform_count = len(my_exp_transforms)
+
+    aug_pool = [30,50,70,100]
+
+    if config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
+        my_acc_results = [[[] for _ in range(len(aug_pool))] for _ in range(transform_count)]
+
+    if config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
+        my_acc_results = [[[] for _ in range(len(aug_pool))] for _ in range(transform_count)]
+
+    for repeat_index in range(repeat_num):
+        if config.train_mode == EXP_MODES.ORIGINAL:
+            dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index)
+            acc = test(test_orig_dataset, args=config, output_dir=dir_name)
+            my_acc_results.append(acc)
+        elif config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
+            for t_index in range(transform_count):
+                dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index)
+                acc = test(test_orig_dataset, args=config, output_dir=dir_name)
+                my_acc_results[t_index].append(acc)
+        elif config.train_mode >= EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X and config.train_mode <= EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
+            for t_index in range(transform_count):
+                for j, aug_val in enumerate(aug_pool):
+                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
+                    acc = test(test_orig_dataset, args=config, output_dir=dir_name)
+                    my_acc_results[t_index][j].append(acc)
+                    
+    save_result(config, [my_acc_results, transform_count, aug_pool])
 
 def train_for_exp(config):
     valid_rate = 0.2
     repeat_num = config.repeat_num
-    #train_orig_dataset, valid_orig_ataset, test_orig_dataset = load_original_Data(dataset_name=config.dataset,valid_rate=valid_rate)
-    train_orig_dataset, valid_orig_ataset, _= load_original_Data(dataset_name=config.dataset, valid_rate=0.2)
+    
+    train_orig_dataset, valid_orig_ataset, _ = load_original_Data(dataset_name=config.dataset, valid_rate=0.2)
     transform_count = len(my_exp_transforms)
+    
     aug_rate_pool = [30,50,70,100]
+    
     for repeat_index in range(repeat_num):
         if config.train_mode == EXP_MODES.ORIGINAL:
             dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index)
@@ -327,7 +299,7 @@ def train_for_exp(config):
                 train_aug_dataset = load_exp_aug_Data(dataset_name=config.dataset, transform_index=t_index, valid_rate=valid_rate)
                 dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index)
                 train(train_aug_dataset, valid_orig_ataset, args=config, output_dir=dir_name)
-        elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
+        elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
             for t_index in range(transform_count):
                 train_aug_dataset = load_exp_aug_Data(dataset_name=config.dataset, transform_index=t_index, valid_rate=valid_rate)
                 for j, aug_val in enumerate(aug_rate_pool):
@@ -341,14 +313,7 @@ def train_for_exp(config):
                 custom_train_dataset = getCustomDataset(train_dataset, aug_val)
                 train(custom_train_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=True)            
                 '''
-        elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
-            for t_index in range(transform_count):
-                train_aug_dataset = load_exp_aug_Data(dataset_name=config.dataset, transform_index=t_index, valid_rate=valid_rate)
-                for j, aug_val in enumerate(aug_rate_pool):
-                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
-                    train(train_orig_dataset, valid_orig_ataset, args=config, output_dir=dir_name, aug_data=train_aug_dataset, aug_rate=aug_val)
-        
-        elif config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
+        elif config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
             for t_index in range(transform_count):
                 train_aug_dataset = load_exp_aug_Data(dataset_name=config.dataset, transform_index=t_index, valid_rate=0)
                 for j, aug_val in enumerate(aug_rate_pool):
@@ -362,13 +327,6 @@ def train_for_exp(config):
                 custom_train_dataset = getCustomDataset(train_dataset, aug_val)
                 train(custom_train_dataset, valid_orig_ataset, test_orig_dataset, args=args, repeat_index=index,aug_rate=aug_val,shuffleFlag=True)            
                 '''
-        elif config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
-            for t_index in range(transform_count):
-                train_aug_dataset = load_exp_aug_Data(dataset_name=config.dataset, transform_index=t_index, valid_rate=0)
-                for j, aug_val in enumerate(aug_rate_pool):
-                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
-                    train(train_orig_dataset, valid_orig_ataset, args=config, output_dir=dir_name, aug_data=train_aug_dataset, aug_rate=aug_val)
-    
 
 if __name__ == '__main__':
     parser = build_parser()

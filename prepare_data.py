@@ -1,17 +1,10 @@
 from random import shuffle
 import torch
-import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-import torchvision.models as model
-import random
-import numpy as np
 from exp_mode import EXP_MODES
-from torch.utils.data import Subset
-from torch.utils.data import DataLoader, TensorDataset
 
 from sklearn.model_selection import train_test_split
-import random
 import os
 
 dataset_load_func = {
@@ -90,9 +83,6 @@ transform_aug5_s4 = transforms.Compose([
 
 my_exp_transforms = [transform_aug0_rc,transform_aug1,transform_aug2_s1,transform_aug3_s2,transform_aug4_s3,transform_aug5_s4]
 
-
-
-
 class CustomCIFAR10Dataset(torch.utils.data.Dataset):
     def __init__(self, original_dataset, original_transform, augmented_transform, augmentation_rate):
         self.original_dataset = original_dataset
@@ -118,24 +108,18 @@ def prepare_train_aug_data_per_epoch(train_dataset, aug_data, aug_val, bs, mode)
     aug_rate = aug_val/100
    
     if aug_rate<1:
-        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
-            train_dataset, _ = train_test_split(train_dataset, train_size=1-aug_rate, shuffle=True)
-        if mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
+        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
             train_dataset, _ = train_test_split(train_dataset, train_size=1-aug_rate, shuffle=True)
         aug, _ = train_test_split(aug_data, train_size=aug_rate, shuffle=True)
         my_train_dataset = train_dataset + aug
     else:
         aug = list(aug_data)        
-        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
+        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
             my_train_dataset = aug
-        elif mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
-            my_train_dataset = train_dataset + aug
-        elif mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
-            my_train_dataset = aug
-        elif mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
+        elif mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X or mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
             my_train_dataset = train_dataset + aug
         
-    train_loader = torch.utils.data.DataLoader(my_train_dataset, batch_size=bs, shuffle=True, num_workers=4)   
+    train_loader = torch.utils.data.DataLoader(my_train_dataset, batch_size=bs, shuffle=True, num_workers=8)   
     
     return train_loader
 
@@ -165,9 +149,6 @@ def load_original_Data(dataset_name = None,valid_rate=0.2):
 
 def load_exp_aug_Data(dataset_name,transform_index,valid_rate):
     data_dir = './data/{}'.format(dataset_name)
-    data_download_Flag = False
-    if not os.path.exists(data_dir):
-        data_download_Flag = True  
     
     # Load CIFAR-10 dataset
     aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, train=True, download=True, transform=my_exp_transforms[transform_index])
