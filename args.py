@@ -12,6 +12,7 @@ def build_parser():
     parser.add_argument('-repeat_num', type=int, default=3, help="The number of times you want to run the experiment")
     parser.add_argument('-outputs', dest='outputs', action='store_true', help='Show full validation outputs')
     parser.add_argument('-no-outputs', dest='outputs', action='store_false', help='Do not show full validation outputs')
+    parser.add_argument('-imageshowflag', type=bool, default=False, choices=[True, False], help='To check image')
     parser.set_defaults(outputs=True)
     
     # Device Configuration
