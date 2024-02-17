@@ -268,6 +268,9 @@ def test_for_exp(config):
 
     aug_pool = [30,50,70,100]
 
+    if config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
+        my_acc_results = [[] for _ in range(transform_count)]
+
     if config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
         my_acc_results = [[[] for _ in range(len(aug_pool))] for _ in range(transform_count)]
 
