@@ -14,6 +14,9 @@ from prepare_data import *
 from args import build_parser
 import csv
 
+from tensorboardX import SummaryWriter
+# pip install tensorboardX
+
 class EarlyStopping:
     def __init__(self, patience=7, verbose=True, delta=0, dir='./output'):
         self.patience = patience
@@ -54,6 +57,9 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
     config = args
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    writer1 = SummaryWriter(f'{output_dir.replace("./output", "./runs")}-train')
+    writer2 = SummaryWriter(f'{output_dir.replace("./output", "./runs")}-valid')
        
     if config.dataset == "cifar100":
         number_of_classes = 100
@@ -101,7 +107,6 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
             index = 0
             
             model.train()
-            
             for batch in train_loader:
                     x, y = batch[0].to(device), batch[1].to(device)
                     optimizer.zero_grad()
@@ -112,7 +117,7 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
                     if index==0 and config.imageshowflag:
                         my_image.append(batch[0][1])
                     index = index + 1
-
+            writer1.add_scalar("loss", loss.cpu().detach().numpy(), i)
             if i % 10 ==0:
                 loss_arr.append(loss.cpu().detach().numpy())
 
@@ -140,7 +145,9 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
                 logFile.flush()
 
                 current_acc = (correct / total) * 100
-                
+                writer2.add_scalar("loss", valid_loss, i)
+                writer2.add_scalar("accuracy", current_acc, i)
+
                 if current_acc > best_acc:
                     print(" Accuracy increase from {:.2f}% to {:.2f}%. Model saved".format(best_acc, current_acc))
                     best_acc = current_acc
@@ -192,6 +199,7 @@ def test(test_data, args, output_dir):
     config = args
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    writer3 = SummaryWriter(f'{output_dir.replace("./output", "./runs")}-test')
        
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=config.batch_size, shuffle=True, num_workers=4)                                                                                                                        # 모델 추론
     mymodel = '{}/loss_best.pt'.format(output_dir)
@@ -211,6 +219,7 @@ def test(test_data, args, output_dir):
             c = (predict == batch[1]).squeeze()
 
     acc = correct / total_cnt
+    writer3.add_scalar("accuracy", acc*100)
     print("\nTest Acc : {}, {}".format(acc,output_dir))
     return acc 
     
