@@ -1,1 +1,6 @@
 /__pycache__
+/data
+/models/__pycache__
+/output
+/runs
+*log*
