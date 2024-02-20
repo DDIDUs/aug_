@@ -14,9 +14,6 @@ from prepare_data import *
 from args import build_parser
 import csv
 
-from tensorboardX import SummaryWriter
-# pip install tensorboardX
-
 class EarlyStopping:
     def __init__(self, patience=7, verbose=True, delta=0, dir='./output'):
         self.patience = patience
@@ -57,9 +54,6 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
     config = args
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    writer1 = SummaryWriter(f'{output_dir.replace("./output", "./runs")}-train')
-    writer2 = SummaryWriter(f'{output_dir.replace("./output", "./runs")}-valid')
        
     if config.dataset == "cifar100":
         number_of_classes = 100
@@ -107,6 +101,7 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
             index = 0
             
             model.train()
+            
             for batch in train_loader:
                     x, y = batch[0].to(device), batch[1].to(device)
                     optimizer.zero_grad()
@@ -117,7 +112,7 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
                     if index==0 and config.imageshowflag:
                         my_image.append(batch[0][1])
                     index = index + 1
-            writer1.add_scalar("loss", loss.cpu().detach().numpy(), i)
+
             if i % 10 ==0:
                 loss_arr.append(loss.cpu().detach().numpy())
 
@@ -145,9 +140,7 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
                 logFile.flush()
 
                 current_acc = (correct / total) * 100
-                writer2.add_scalar("loss", valid_loss, i)
-                writer2.add_scalar("accuracy", current_acc, i)
-
+                
                 if current_acc > best_acc:
                     print(" Accuracy increase from {:.2f}% to {:.2f}%. Model saved".format(best_acc, current_acc))
                     best_acc = current_acc
@@ -169,15 +162,15 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
             plt.show()
             print("end")
 
-def getOutputDir(dataset,train_model,train_mode,repeat_index,transform_index=None,aug_rate=0):
+def getOutputDir(dataset,train_model,train_mode,repeat_index, w_base, transform_index=None,aug_rate=0):
 
     if aug_rate>0:
-        aug_rate_str = "-{}".format(aug_rate)
+        aug_rate_str = "-{}_{}".format(aug_rate, w_base)
 
     if config.train_mode == EXP_MODES.ORIGINAL:
-        output_dir = "./output/{}/{}/m{}_r{}_orig".format(dataset,train_model, train_mode, repeat_index)
+        output_dir = "./output/{}/{}/m{}_r{}_{}_orig".format(dataset,train_model, train_mode, repeat_index, w_base)
     elif config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
-        output_dir = "./output/{}/{}/m{}_t{}_r{}_aug-only".format(dataset,train_model, train_mode, transform_index, repeat_index)
+        output_dir = "./output/{}/{}/m{}_t{}_r{}_{}_aug-only".format(dataset,train_model, train_mode, transform_index, repeat_index, w_base)
     elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
         output_dir = "./output/{}/{}/m{}_t{}_r{}_our_1x{}".format(dataset,train_model, train_mode, transform_index, repeat_index, aug_rate_str)
     elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
@@ -199,7 +192,6 @@ def test(test_data, args, output_dir):
     config = args
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    writer3 = SummaryWriter(f'{output_dir.replace("./output", "./runs")}-test')
        
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=config.batch_size, shuffle=True, num_workers=4)                                                                                                                        # 모델 추론
     mymodel = '{}/loss_best.pt'.format(output_dir)
@@ -219,7 +211,6 @@ def test(test_data, args, output_dir):
             c = (predict == batch[1]).squeeze()
 
     acc = correct / total_cnt
-    writer3.add_scalar("accuracy", acc*100)
     print("\nTest Acc : {}, {}".format(acc,output_dir))
     return acc 
     
@@ -256,7 +247,7 @@ def save_result(config, result):
                 my_acc_results[i][j].insert(0, "valid_2x_t{}_r{}".format(i,aug_val))
                 wr.writerow(my_acc_results[i][j])
     f.close()
-    
+
 
 def test_for_exp(config):
     repeat_num = config.repeat_num
@@ -270,7 +261,7 @@ def test_for_exp(config):
 
     if config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
         my_acc_results = [[] for _ in range(transform_count)]
-
+        
     if config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
         my_acc_results = [[[] for _ in range(len(aug_pool))] for _ in range(transform_count)]
 
@@ -279,18 +270,18 @@ def test_for_exp(config):
 
     for repeat_index in range(repeat_num):
         if config.train_mode == EXP_MODES.ORIGINAL:
-            dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index)
+            dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index, config.w_base)
             acc = test(test_orig_dataset, args=config, output_dir=dir_name)
             my_acc_results.append(acc)
         elif config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
             for t_index in range(transform_count):
-                dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index)
+                dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index, config.w_base, transform_index=t_index)
                 acc = test(test_orig_dataset, args=config, output_dir=dir_name)
                 my_acc_results[t_index].append(acc)
         elif config.train_mode >= EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X and config.train_mode <= EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
             for t_index in range(transform_count):
                 for j, aug_val in enumerate(aug_pool):
-                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
+                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,config.w_base, transform_index=t_index,aug_rate=aug_val)
                     acc = test(test_orig_dataset, args=config, output_dir=dir_name)
                     my_acc_results[t_index][j].append(acc)
                     
@@ -307,18 +298,18 @@ def train_for_exp(config):
     
     for repeat_index in range(repeat_num):
         if config.train_mode == EXP_MODES.ORIGINAL:
-            dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index)
+            dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index, config.w_base)
             train(train_orig_dataset, valid_orig_ataset, args=config, output_dir=dir_name)
         elif config.train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
             for t_index in range(transform_count):
                 train_aug_dataset = load_exp_aug_Data(dataset_name=config.dataset, transform_index=t_index, valid_rate=valid_rate)
-                dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index)
+                dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index, config.w_base,transform_index=t_index)
                 train(train_aug_dataset, valid_orig_ataset, args=config, output_dir=dir_name)
         elif config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
             for t_index in range(transform_count):
                 train_aug_dataset = load_exp_aug_Data(dataset_name=config.dataset, transform_index=t_index, valid_rate=valid_rate)
                 for j, aug_val in enumerate(aug_rate_pool):
-                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
+                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index, config.w_base,transform_index=t_index,aug_rate=aug_val)
                     train(train_orig_dataset, valid_orig_ataset, args=config, output_dir=dir_name, aug_data=train_aug_dataset, aug_rate=aug_val)
                 '''
                 # Below code is considering for another different kind of implementation
@@ -332,7 +323,7 @@ def train_for_exp(config):
             for t_index in range(transform_count):
                 train_aug_dataset = load_exp_aug_Data(dataset_name=config.dataset, transform_index=t_index, valid_rate=0)
                 for j, aug_val in enumerate(aug_rate_pool):
-                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index,transform_index=t_index,aug_rate=aug_val)
+                    dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode,repeat_index, config.w_base,transform_index=t_index,aug_rate=aug_val)
                     train(train_orig_dataset, valid_orig_ataset, args=config, output_dir=dir_name, aug_data=train_aug_dataset, aug_rate=aug_val)
                 '''
                 # Below code is considering for another different kind of implementation
