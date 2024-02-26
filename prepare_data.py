@@ -119,18 +119,28 @@ def load_original_Data(dataset_name = None,valid_rate=0.2):
     if not os.path.exists(data_dir):
         data_download_Flag = True
 
-    dataset = dataset_load_func[dataset_name](root=data_dir, 
+    if dataset_name == 'stl10':
+        dataset = dataset_load_func[dataset_name](root=data_dir, 
+                                              split='train', 
+                                              download=data_download_Flag,
+                                              transform=transform_original
+                                              )
+        test_dataset = dataset_load_func[dataset_name](root=data_dir, 
+                                                   split='test', 
+                                                   download=True,
+                                                   transform=transform_original)
+    else:
+        dataset = dataset_load_func[dataset_name](root=data_dir, 
                                               train=True, 
                                               download=data_download_Flag,
                                               transform=transform_original
                                               )
-    
-    train_dataset, valid_dataset = train_test_split(dataset, test_size=valid_rate, shuffle=False)
-
-    test_dataset = dataset_load_func[dataset_name](root=data_dir, 
+        test_dataset = dataset_load_func[dataset_name](root=data_dir, 
                                                    train=False, 
                                                    download=True,
                                                    transform=transform_original)
+    
+    train_dataset, valid_dataset = train_test_split(dataset, test_size=valid_rate, shuffle=False)
 
     return train_dataset, valid_dataset, test_dataset
 
@@ -139,7 +149,10 @@ def load_exp_aug_Data(dataset_name,transform_index,valid_rate):
     data_dir = './data/{}'.format(dataset_name)
     transform_uniform.transforms.insert(2, UniformAugment())
     # Load CIFAR-10 dataset
-    aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, train=True, download=True, transform=my_exp_transforms[transform_index])
+    if dataset_name == 'stl10':
+        aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, split='train', download=True, transform=my_exp_transforms[transform_index])
+    else:
+        aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, train=True, download=True, transform=my_exp_transforms[transform_index])
 
     # Split into training and validation sets
     train_size = int((1-valid_rate) * len(aug_train_dataset))
