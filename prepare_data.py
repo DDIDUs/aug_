@@ -14,6 +14,7 @@ dataset_load_func = {
     'fmnist':torchvision.datasets.FashionMNIST,
     'cifar10': torchvision.datasets.CIFAR10,
     'cifar100': torchvision.datasets.CIFAR100,
+    'stl10': torchvision.datasets.STL10,
 }
 
 transform_original = transforms.Compose([
