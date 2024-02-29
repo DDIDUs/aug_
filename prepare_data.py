@@ -24,15 +24,15 @@ def prepare_train_aug_data_per_epoch(train_dataset, aug_data, aug_val, bs, mode)
     aug_rate = aug_val/100
    
     if aug_rate<1:
-        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
+        if mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
             train_dataset, _ = train_test_split(train_dataset, train_size=1-aug_rate, shuffle=True)
         aug, _ = train_test_split(aug_data, train_size=aug_rate, shuffle=True)
         my_train_dataset = train_dataset + aug
     else:
         aug = list(aug_data)        
-        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
+        if mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
             my_train_dataset = aug
-        elif mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X or mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
+        elif mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
             my_train_dataset = train_dataset + aug
         
     train_loader = torch.utils.data.DataLoader(my_train_dataset, batch_size=bs, shuffle=True, num_workers=8)   
