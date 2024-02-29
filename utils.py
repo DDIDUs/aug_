@@ -130,10 +130,6 @@ def getOutputDir(dataset,train_model,train_mode,repeat_index, w_base, transform_
         output_dir = "./output/{}/{}/m{}_r{}_orig{}".format(dataset,train_model, train_mode, repeat_index, w_base_str)
     elif train_mode == EXP_MODES.DYNAMIC_AUG_ONLY:
         output_dir = "./output/{}/{}/m{}_t{}_r{}_aug-only{}".format(dataset,train_model, train_mode, transform_index, repeat_index, w_base)
-    elif train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X:
-        output_dir = "./output/{}/{}/m{}_t{}_r{}_our_1x{}".format(dataset,train_model, train_mode, transform_index, repeat_index, w_base_str)
-    elif train_mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X:
-        output_dir = "./output/{}/{}/m{}_t{}_r{}_our_2x{}".format(dataset,train_model, train_mode, transform_index, repeat_index, w_base_str)
     elif train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
         output_dir = "./output/{}/{}/m{}_t{}_r{}_val_1x{}".format(dataset,train_model, train_mode, transform_index, repeat_index, w_base_str)
     elif train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
