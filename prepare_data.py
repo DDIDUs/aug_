@@ -133,12 +133,11 @@ def load_exp_aug_Data(dataset_name,transform_index,valid_rate):
     elif dataset_name == "stl10":
         my_exp_transforms[transform_index].transforms.insert(0, transforms.Resize((96)))
         aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, split="train", download=True, transform=my_exp_transforms[transform_index])
-        train_size = int((1-valid_rate) * len(aug_train_dataset))
-        train_aug_dataset = torch.utils.data.Subset(aug_train_dataset, range(train_size))
     else:
         aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, train=True, download=True, transform=my_exp_transforms[transform_index])
-        train_size = int((1-valid_rate) * len(aug_train_dataset))
-        train_aug_dataset = torch.utils.data.Subset(aug_train_dataset, range(train_size))
         
+    train_size = int((1-valid_rate) * len(aug_train_dataset))
+    train_aug_dataset = torch.utils.data.Subset(aug_train_dataset, range(train_size)
+                                                
     return train_aug_dataset
 
