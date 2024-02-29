@@ -2,7 +2,7 @@
 
 ## 실험 환경 
 
-실험 모델 : VGGnet16, ShakeShake(26 2x32d, 2x96d), Wide_ResNet(50-2(BottleNeck), 28-10), ResNet50
+실험 모델 : VGGNet16, ShakeShake(26 2x32d, 2x96d), Wide_ResNet(50-2(BottleNeck), 28-10), ResNet50
 
 학습 데이터 세트 : CIFAR10, CIFAR100, STL10, Caltech101
 
