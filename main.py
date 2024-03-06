@@ -174,6 +174,7 @@ def test_for_exp(config):
                 dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode, repeat_index, config.w_base, transform_index=t_index, mode=False)
                 acc = test(test_orig_dataset, args=config, output_dir=dir_name)
                 my_acc_results[t_index].append(acc)
+
         elif config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
             for t_index in range(transform_count):
                 dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode, repeat_index,config.w_base, transform_index=t_index,aug_rate=aug_val, mode=False)
