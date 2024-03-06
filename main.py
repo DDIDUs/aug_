@@ -76,6 +76,7 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
                     my_image.append(batch[0][1])
                 index = index + 1
 
+
             if i % 10 ==0:
                 loss_arr.append(loss.cpu().detach().numpy())
 
@@ -173,7 +174,8 @@ def test_for_exp(config):
                 dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode, repeat_index, config.w_base, transform_index=t_index, mode=False)
                 acc = test(test_orig_dataset, args=config, output_dir=dir_name)
                 my_acc_results[t_index].append(acc)
-        elif config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X and config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
+
+        elif config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X or config.train_mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
             for t_index in range(transform_count):
                 dir_name = getOutputDir(config.dataset,config.train_model,config.train_mode, repeat_index,config.w_base, transform_index=t_index,aug_rate=aug_val, mode=False)
                 acc = test(test_orig_dataset, args=config, output_dir=dir_name)
@@ -208,6 +210,7 @@ def train_for_exp(config):
 if __name__ == '__main__':
     parser = build_parser()
     config = parser.parse_args()
+
     if config.mode == "train":
         train_for_exp(config)
     else:
