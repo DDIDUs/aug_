@@ -7,6 +7,7 @@ import os
 from sklearn.model_selection import train_test_split
 
 from exp_mode import EXP_MODES
+from autoaug import ImageNetPolicy
 from aug_transform import *
 from utils import *
 
@@ -18,37 +19,54 @@ dataset_load_func = {
     'stl10': torchvision.datasets.STL10,
 }
 
-my_exp_transforms = [transform_aug0_rc, transform_autoaug, transform_uniform, transform_aug1]
+d_size = {'cifar10':32, 'cifar100':32, 'stl10':96, 'caltech101':224}
+
+mean = {
+    'cifar10': [0.4914, 0.4822, 0.4465],
+    'cifar100': [0.4914, 0.4822, 0.4465],
+    'stl10': [0.4467106, 0.43980986, 0.40664646],
+    'caltech101': [0.54558825, 0.52854234, 0.50220895]
+}
+
+std = {
+    'cifar10': [0.2023, 0.1994, 0.2010],
+    'cifar100': [0.2023, 0.1994, 0.2010],
+    'stl10': [0.22414584, 0.22148906, 0.22389975],
+    'caltech101': [0.23349172, 0.23052077, 0.23274076]
+}
+
+my_exp_transforms = [transform_aug0_rc, transform_uniform, transform_autoaug, transform_aug1]
 
 def prepare_train_aug_data_per_epoch(train_dataset, aug_data, aug_val, bs, mode):
     aug_rate = aug_val/100
    
     if aug_rate<1:
-        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
+        if mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
             train_dataset, _ = train_test_split(train_dataset, train_size=1-aug_rate, shuffle=True)
         aug, _ = train_test_split(aug_data, train_size=aug_rate, shuffle=True)
         my_train_dataset = train_dataset + aug
     else:
         aug = list(aug_data)        
-        if mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_1X or mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
+        if mode == EXP_MODES.ORIG_PLUS_VALID_AUG_1X:
             my_train_dataset = aug
-        elif mode == EXP_MODES.ORIG_PLUS_DYNAMIC_AUG_2X or mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
+        elif mode == EXP_MODES.ORIG_PLUS_VALID_AUG_2X:
             my_train_dataset = train_dataset + aug
-        
+            
     train_loader = torch.utils.data.DataLoader(my_train_dataset, batch_size=bs, shuffle=True, num_workers=8)   
     
     return train_loader
 
-def load_caltech(ori, transform_index = 0):
+def load_caltech(ori, data, transform_index = 0):
 
     if ori:
         transform_d = transform_original
     else:   
         transform_d = my_exp_transforms[transform_index]
+        transform_d.transforms.append(transforms.Normalize(mean[data], std[data]))
         
-    if transform_index == 1:
-        transform_d.transforms.pop(0)
-        transform_d.transforms.insert(0, AutoAugment(policy=AutoAugmentPolicy.IMAGENET))
+    if transform_index == 2:
+        transform_d.transforms.pop(1)
+        transform_d.transforms.insert(0, ImageNetPolicy())
         
     transform_d.transforms.insert(0, transforms.Resize((224, 224)))
 
@@ -83,11 +101,13 @@ def load_original_Data(dataset_name = None,valid_rate=0.2):
 
     data_dir = './data/{}'.format(dataset_name)
     data_download_Flag = False
+    
     if not os.path.exists(data_dir):
         data_download_Flag = True
-
+        
+    transform_original.transforms.append(transforms.Normalize(mean[dataset_name], std[dataset_name]))
+    
     if dataset_name == "stl10":
-        transform_original.transforms.insert(0, transforms.Resize((96)))
         dataset = dataset_load_func[dataset_name](root=data_dir, 
                                                   split="train", 
                                                   download=data_download_Flag,
@@ -101,7 +121,7 @@ def load_original_Data(dataset_name = None,valid_rate=0.2):
                                                        download=True,
                                                        transform=transform_original)
     elif dataset_name == "caltech101":
-        train_dataset, valid_dataset, test_dataset = load_caltech(True)
+        train_dataset, valid_dataset, test_dataset = load_caltech(True, dataset_name)
     else:
         dataset = dataset_load_func[dataset_name](root=data_dir, 
                                                   train=True, 
@@ -122,23 +142,25 @@ def load_exp_aug_Data(dataset_name,transform_index,valid_rate):
     
     data_dir = './data/{}'.format(dataset_name)
     
+    transform_uniform.transforms.insert(0, transforms.RandomCrop(d_size[dataset_name], padding=4))
     transform_uniform.transforms.insert(2, UniformAugment())
     
+    trans = my_exp_transforms[transform_index]
+    
     if dataset_name == "caltech101":
-        train_dataset, valid_dataset, _ = load_caltech(False, transform_index)
+        train_dataset, valid_dataset, _ = load_caltech(False, dataset_name, transform_index)
         if valid_rate == 0:
             aug_train_dataset = train_dataset + valid_dataset
         else:
             aug_train_dataset = train_dataset
     elif dataset_name == "stl10":
-        my_exp_transforms[transform_index].transforms.insert(0, transforms.Resize((96)))
-        aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, split="train", download=True, transform=my_exp_transforms[transform_index])
-        train_size = int((1-valid_rate) * len(aug_train_dataset))
-        train_aug_dataset = torch.utils.data.Subset(aug_train_dataset, range(train_size))
+        trans.transforms.append(transforms.Normalize(mean[dataset_name], std[dataset_name]))
+        aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, split="train", download=True, transform=trans)
     else:
-        aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, train=True, download=True, transform=my_exp_transforms[transform_index])
-        train_size = int((1-valid_rate) * len(aug_train_dataset))
-        train_aug_dataset = torch.utils.data.Subset(aug_train_dataset, range(train_size))
+        trans.transforms.append(transforms.Normalize(mean[dataset_name], std[dataset_name]))
+        aug_train_dataset = dataset_load_func[dataset_name](root=data_dir, train=True, download=True, transform=trans)
         
+    train_size = int((1-valid_rate) * len(aug_train_dataset))
+    train_aug_dataset = torch.utils.data.Subset(aug_train_dataset, range(train_size))
+    
     return train_aug_dataset
-
