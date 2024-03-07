@@ -13,11 +13,17 @@ from args import build_parser
 
 import matplotlib.pyplot as plt
 
+# pip install tensorboard
+from tensorboardX import SummaryWriter
+
 def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
     config = args
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-       
+    
+    writer1 = SummaryWriter(f'{output_dir.replace("./output", "./runs")}-train')
+    writer2 = SummaryWriter(f'{output_dir.replace("./output", "./runs")}-valid')
+
     if config.dataset == "cifar100":
         number_of_classes = 100
     elif config.dataset == "caltech101":
@@ -62,7 +68,8 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
                 train_loader = prepare_train_aug_data_per_epoch(train_data, aug_data, aug_rate, config.batch_size, config.train_mode)
             
             index = 0
-            
+            running_correct = 0
+            running_total = 0
             model.train()
             
             for batch in train_loader:
@@ -72,11 +79,15 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
                 loss = loss_func(output,y)
                 loss.backward()
                 optimizer.step()
+                _,output_index = torch.max(output,1)
+                running_total += batch[1].size(0)
+                running_correct += (output_index == y).sum().float()
                 if index==0 and config.imageshowflag:
                     my_image.append(batch[0][1])
                 index = index + 1
 
-
+            writer1.add_scalar('accuracy', running_correct/running_total*100, i)
+            writer1.add_scalar('loss', loss.cpu().detach().numpy(), i)
             if i % 10 ==0:
                 loss_arr.append(loss.cpu().detach().numpy())
 
@@ -102,7 +113,8 @@ def train(train_data, valid_data, args, output_dir, aug_data=None, aug_rate=0):
                 logFile.flush()
 
                 current_acc = (correct / total) * 100
-                
+                writer2.add_scalar('accuracy', current_acc, i)
+                writer2.add_scalar('loss', valid_loss, i)
                 if current_acc > best_acc:
                     print(" Accuracy increase from {:.2f}% to {:.2f}%. Model saved".format(best_acc, current_acc))
                     best_acc = current_acc
